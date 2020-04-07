@@ -8,12 +8,24 @@ const express = require('express');
 const cors = require('cors');
 const superagent = require('superagent');
 
+// connecting the database with the app
+const pg = require('pg');
+// Database connection setup
+const client = new pg.Client(process.env.DATABASE_URL);
+client.on('error', (err) => {
+  throw err;
+});
 // Application setup
 const PORT = process.env.PORT;
 // initilize the server
 const app = express();
 app.use(cors());
 
+client.connect().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Hello, I am your lab and I am working on PORT ${PORT}`);
+  });
+});
 // ============================================================
 // ==========================LOCATION==========================
 // ============================================================
@@ -36,21 +48,53 @@ function getLocation(city) {
     return returnedConstructors;
   });
 }
+// ============================================================
+// ===================DATABASE=================================
+// ============================================================
+// show the database data (information)
+app.get('/place', (request, response) => {
+  let SQL = 'SELECT * FROM location';
+  client
+    .query(SQL)
+    .then((answer) => {
+      response.status(200).json(answer.rows);
+    })
+    .catch(() =>
+      app.use((error, req, res) => {
+        res.status(500).send(error);
+      })
+    );
+});
 
+// add data to the database table
+app.get('/add', (request, response) => {
+  let search_query = request.query.city;
+  let formatted_query = request.query.formatted_query;
+  let latitude = request.query.lat;
+  let longitude = request.query.lon;
+
+  let SQL =
+    'INSERT INTO location (search_query,formatted_query,latitude,longitude)  VALUES ($1,$2,$3,$4)';
+  let safeValues = [search_query, formatted_query, latitude, longitude];
+
+  client
+    .query(SQL, safeValues)
+    .then((answer) => {
+      response.status(200).json(answer.rows);
+    })
+    .catch(() =>
+      app.use((error, req, res) => {
+        res.status(500).send(error);
+      })
+    );
+});
+
+// add?city=seattle&formatted_query=Seattle,WA,USA&lat=47.606210&lon=-122.332071
+// ============================================================
 // ============================================================
 // ==========================WEATHER===========================
 // ============================================================
 app.get('/weather', weatherHandler);
-// function weatherHandler(req, res) {
-//   let city = req.query.search_query;
-//   // const url = `https://api.weatherbit.io/v2.0/current?city=${city}&key=${process.env.WEATHERBIT_API_KEY}`;
-//   const url = `https://api.weatherbit.io/v2.0/forecast/daily?city=${city}&key=${process.env.WEATHERBIT_API_KEY}`;
-
-//   superagent.get(url).then((wData) => {
-//     // console.log(wData);
-//     res.status(200).json(wData.body.data.map((day) => new Weather(day)));
-//   });
-// }
 
 function weatherHandler(req, res) {
   let city = req.query.search_query;
@@ -61,6 +105,7 @@ function getWeather(city) {
   const url = `https://api.weatherbit.io/v2.0/forecast/daily?city=${city}&key=${process.env.WEATHERBIT_API_KEY}`;
   return superagent.get(url).then((WData) => {
     // let bebo = WData.body;
+    // console.log("bebebebebebebeb", WData.body);
     return WData.body.data.map((val) => {
       return new Weather(val);
     });
@@ -123,12 +168,12 @@ app.use('*', (req, res) => {
   res.status(404).send('Oops, 404 not found');
 });
 // ========trigger the error msg=======================
-app.use((error, req, res) => {
-  res.status(500).send(error);
-});
+// app.use((error, req, res) => {
+//   res.status(500).send(error);
+// });
 // ====================app listening====================
-app.listen(PORT, () => {
-  console.log('Hello, I am your lab and I am working');
-});
+// app.listen(PORT, () => {
+//   console.log('Hello, I am your lab and I am working');
+// });
 
 // EVENTBRITE_API_KEY=200720611-853a866402040d9f6b26687320787105
